@@ -1,0 +1,14 @@
+{
+  "name": "pi-openai-codex-image",
+  "version": "0.1.0",
+  "description": "OpenAI Codex/ChatGPT OAuth image-generation tool for the pi coding agent. Registers openai_codex_generate_image (single, supports img2img) and openai_codex_generate_images (batch), powered by the OAuth-backed chatgpt.com/backend-api/codex/images endpoints. Uses the openai-codex auth entry from ~/.pi/agent/auth.json and persists returned base64 images to ACB uploads.",
+  "keywords": ["pi-package", "image-generation", "openai-codex", "chatgpt-oauth"],
+  "type": "module",
+  "pi": { "extensions": ["./extensions/index.ts"] },
+  "scripts": { "test": "vitest run", "test:watch": "vitest" },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.9"
+  }
+}
