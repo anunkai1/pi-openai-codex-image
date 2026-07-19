@@ -279,7 +279,10 @@ export async function callOpenAICodexImage(
 			});
 		} catch (err) {
 			if (signal?.aborted) throw err;
-			throw new Error(`OpenAI Codex image request failed: ${err instanceof Error ? err.message : String(err)}`);
+			const message = err instanceof Error ? err.message : String(err);
+			const cause = err instanceof Error ? err.cause as { code?: string; message?: string } | undefined : undefined;
+			const detail = cause?.code || cause?.message;
+			throw new Error(`OpenAI Codex image request failed: ${message}${detail ? ` (${detail})` : ""}`);
 		}
 		if (res.ok) return (await res.json()) as OpenAICodexImageResponse;
 		const text = await res.text().catch(() => "");
