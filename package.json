@@ -5,7 +5,7 @@
   "keywords": ["pi-package", "image-generation", "openai-codex", "chatgpt-oauth"],
   "type": "module",
   "pi": { "extensions": ["./extensions/index.ts"] },
-  "scripts": { "test": "vitest run", "test:watch": "vitest" },
+  "scripts": { "build": "tsc -p tsconfig.build.json", "test": "vitest run", "test:watch": "vitest" },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "typescript": "^5.7.2",

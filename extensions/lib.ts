@@ -12,9 +12,9 @@
  * it when paired with ChatGPT-Account-ID.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 export const CODEX_BASE = "https://chatgpt.com/backend-api/codex";
@@ -118,10 +118,13 @@ function readAuthFile(): Record<string, unknown> | null {
 }
 
 function writeAuthFile(auth: Record<string, unknown>): void {
-	const file = authFilePath();
-	mkdirSync(join(file, ".."), { recursive: true });
+	// auth.json is a symlink into the central secrets store on server2. Resolve
+	// it before atomic replacement so token refresh never replaces that symlink
+	// with a local, accidentally less-protected copy.
+	const file = realpathSync(authFilePath());
+	mkdirSync(dirname(file), { recursive: true });
 	const tmp = `${file}.tmp`;
-	writeFileSync(tmp, `${JSON.stringify(auth, null, 2)}\n`, "utf8");
+	writeFileSync(tmp, `${JSON.stringify(auth, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 	renameSync(tmp, file);
 }
 
