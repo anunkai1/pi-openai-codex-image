@@ -9,7 +9,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { DEFAULT_MODEL, callOpenAICodexImage, getOpenAICodexAuth, type OpenAICodexImageResponse } from "../extensions/lib.js";
 
 const HOST = process.env.CODEX_IMAGE_GATEWAY_HOST?.trim() || "127.0.0.1";
-const PORT = Number.parseInt(process.env.CODEX_IMAGE_GATEWAY_PORT ?? "", 10) || 4010;
+const PORT = Number.parseInt(process.env.CODEX_IMAGE_GATEWAY_PORT ?? "", 10) || 4011;
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_PROMPT_CHARS = 30_000;
 const ALLOWED_SIZES = new Set(["auto", "1024x1024", "1536x1024", "1024x1536"]);
