@@ -44,16 +44,16 @@ describe("resolveModel", () => {
 });
 
 describe("resolveInputImageUrl", () => {
-	it("passes data/http", () => {
-		expect(resolveInputImageUrl("data:image/png;base64,AAAA")).toEqual({ url: "data:image/png;base64,AAAA" });
-		expect(resolveInputImageUrl("https://x/y.png")).toEqual({ url: "https://x/y.png" });
+	it("passes data/http", async () => {
+		expect(await resolveInputImageUrl("data:image/png;base64,AAAA")).toEqual({ url: "data:image/png;base64,AAAA" });
+		expect(await resolveInputImageUrl("https://x/y.png")).toEqual({ url: "https://x/y.png" });
 	});
 	it("reads local file", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "poci-in-"));
 		try {
 			const f = join(dir, "a.jpg");
 			await writeFile(f, Buffer.from([1,2,3]));
-			const r = resolveInputImageUrl(f);
+			const r = await resolveInputImageUrl(f);
 			expect("url" in r).toBe(true);
 			expect((r as {url:string}).url).toMatch(/^data:image\/jpeg;base64,/);
 		} finally { await rm(dir, { recursive: true, force: true }); }
@@ -64,8 +64,8 @@ describe("writeBase64", () => {
 	let dir: string;
 	beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), "poci-out-")); ensureOutputDir(dir); });
 	afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
-	it("writes uploads URL", () => expect(writeBase64("aGVsbG8=", dir, "png")).toMatch(/^\/uploads\/[0-9a-f-]{36}\.png$/));
-	it("returns null for empty", () => expect(writeBase64("", dir, "png")).toBeNull());
+	it("writes uploads URL", async () => expect(await writeBase64("aGVsbG8=", dir, "png")).toMatch(/^\/uploads\/[0-9a-f-]{36}\.png$/));
+	it("returns null for empty", async () => expect(await writeBase64("", dir, "png")).toBeNull());
 });
 
 describe("callOpenAICodexImage", () => {

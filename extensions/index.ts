@@ -65,15 +65,15 @@ function buildBody(opts: {
 	return { kind: "generate", body };
 }
 
-function persistFirst(resp: OpenAICodexImageResponse, outputDir: string, fallbackExt: string): string | null {
+async function persistFirst(resp: OpenAICodexImageResponse, outputDir: string, fallbackExt: string): Promise<string | null> {
 	const b64 = resp.data?.find((x) => typeof x.b64_json === "string" && x.b64_json.length > 0)?.b64_json;
 	if (!b64) return null;
 	const ext = extFromOutputFormat(resp.output_format, fallbackExt);
 	return writeBase64(b64, outputDir, ext);
 }
 
-function formatResult(prompt: string, model: string, resp: OpenAICodexImageResponse, outputDir: string, fallbackExt: string) {
-	const url = persistFirst(resp, outputDir, fallbackExt);
+async function formatResult(prompt: string, model: string, resp: OpenAICodexImageResponse, outputDir: string, fallbackExt: string) {
+	const url = await persistFirst(resp, outputDir, fallbackExt);
 	const meta = [resp.size, resp.quality ? `quality ${resp.quality}` : null, resp.background ? `background ${resp.background}` : null]
 		.filter(Boolean)
 		.join(", ");
@@ -124,7 +124,7 @@ export default function (pi: ExtensionAPI): void {
 			let inputImageUrl: string | undefined;
 			const rawInput = params.input_image as string | undefined;
 			if (rawInput && rawInput.trim().length > 0) {
-				const r = resolveInputImageUrl(rawInput);
+				const r = await resolveInputImageUrl(rawInput);
 				if ("error" in r) return { content: [{ type: "text", text: `Error: invalid input_image: ${r.error}` }], details: { error: r.error, model, images: [] } };
 				inputImageUrl = r.url;
 			}
@@ -141,7 +141,7 @@ export default function (pi: ExtensionAPI): void {
 			});
 			try {
 				const resp = await callOpenAICodexImage(auth, req.kind, req.body, signal);
-				return formatResult(prompt, model, resp, outputDir, ext);
+				return await formatResult(prompt, model, resp, outputDir, ext);
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return { content: [{ type: "text", text: `Error generating image with OpenAI Codex '${model}': ${msg}` }], details: { error: msg, model, images: [] } };
@@ -180,7 +180,7 @@ export default function (pi: ExtensionAPI): void {
 				});
 				try {
 					const resp = await callOpenAICodexImage(auth, req.kind, req.body, signal);
-					const url = persistFirst(resp, outputDir, ext) ?? undefined;
+					const url = (await persistFirst(resp, outputDir, ext)) ?? undefined;
 					results.push(url ? { prompt: p, url, response: resp } : { prompt: p, error: "no decodable image in response", response: resp });
 				} catch (err) {
 					results.push({ prompt: p, error: err instanceof Error ? err.message : String(err) });
