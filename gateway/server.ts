@@ -11,6 +11,10 @@ import { DEFAULT_MODEL, callOpenAICodexImage, getOpenAICodexAuth, type OpenAICod
 const HOST = process.env.CODEX_IMAGE_GATEWAY_HOST?.trim() || "127.0.0.1";
 const PORT = Number.parseInt(process.env.CODEX_IMAGE_GATEWAY_PORT ?? "", 10) || 4011;
 const MAX_BODY_BYTES = 256 * 1024;
+const SHUTDOWN_DRAIN_TIMEOUT_MS = Math.max(
+	10_000,
+	Number.parseInt(process.env.SHUTDOWN_DRAIN_TIMEOUT_MS ?? "", 10) || 600_000,
+);
 const MAX_PROMPT_CHARS = 30_000;
 const ALLOWED_SIZES = new Set(["auto", "1024x1024", "1536x1024", "1024x1536"]);
 const ALLOWED_QUALITIES = new Set(["auto", "low", "medium", "high"]);
@@ -88,9 +92,16 @@ function responseImage(response: OpenAICodexImageResponse): string | undefined {
 // to subscription rate limits, and KidStories only needs one finished image at
 // a time to make durable progress on a book.
 let tail: Promise<void> = Promise.resolve();
+let activeOperations = 0;
+let shuttingDown = false;
 function serialise<T>(fn: () => Promise<T>): Promise<T> {
+	activeOperations += 1;
 	const next = tail.then(fn, fn);
 	tail = next.then(() => undefined, () => undefined);
+	void next.then(
+		() => { activeOperations -= 1; },
+		() => { activeOperations -= 1; },
+	);
 	return next;
 }
 
@@ -136,8 +147,16 @@ async function handleGeneration(req: IncomingMessage, res: ServerResponse): Prom
 const server = createServer((req, res) => {
 	if (req.method === "GET" && req.url === "/health") {
 		void getOpenAICodexAuth()
-			.then((auth) => sendJson(res, auth ? 200 : 503, { status: auth ? "ok" : "unavailable", oauthConfigured: Boolean(auth) }))
-			.catch(() => sendJson(res, 503, { status: "unavailable", oauthConfigured: false }));
+			.then((auth) => sendJson(res, auth ? 200 : 503, {
+				status: shuttingDown ? "draining" : (auth ? "ok" : "unavailable"),
+				oauthConfigured: Boolean(auth),
+				activeOperations,
+			}))
+			.catch(() => sendJson(res, 503, {
+				status: "unavailable",
+				oauthConfigured: false,
+				activeOperations,
+			}));
 		return;
 	}
 	if (req.method === "POST" && req.url === "/v1/images/generations") {
@@ -150,3 +169,32 @@ const server = createServer((req, res) => {
 server.requestTimeout = 190_000;
 server.headersTimeout = 195_000;
 server.listen(PORT, HOST, () => console.log(`[codex-image-gateway] listening on http://${HOST}:${PORT}`));
+
+async function shutdown(signal: string): Promise<void> {
+	if (shuttingDown) return;
+	shuttingDown = true;
+	console.log(`[codex-image-gateway] received ${signal}; draining ${activeOperations} operation(s)`);
+
+	const closed = new Promise<void>((resolveClose, rejectClose) => {
+		server.close((error) => (error ? rejectClose(error) : resolveClose()));
+	});
+	let timer: NodeJS.Timeout | undefined;
+	const timeout = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(
+			() => reject(new Error(`shutdown drain exceeded ${SHUTDOWN_DRAIN_TIMEOUT_MS}ms`)),
+			SHUTDOWN_DRAIN_TIMEOUT_MS,
+		);
+	});
+
+	try {
+		await Promise.race([Promise.all([closed, tail]), timeout]);
+		if (timer) clearTimeout(timer);
+		process.exit(0);
+	} catch (error) {
+		console.error(`[codex-image-gateway] shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
+		process.exit(1);
+	}
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
