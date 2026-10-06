@@ -8,8 +8,6 @@
 
 import Type from "typebox";
 import {
-	DEFAULT_MODEL,
-	IMAGE_MODELS,
 	callOpenAICodexImage,
 	ensureOutputDir,
 	extFromOutputFormat,
@@ -30,15 +28,6 @@ const ImageGenerateParams = Type.Object({
 	quality: Type.Optional(Type.String({ description: "Quality hint: 'auto', 'low', 'medium', or 'high'. Codex may normalize to auto." })),
 	background: Type.Optional(Type.String({ description: "Background hint: 'auto', 'opaque', or 'transparent'. Codex built-in defaults to auto." })),
 	format: Type.Optional(Type.String({ description: "Output format hint: 'png', 'jpeg', or 'webp'. Default png; response output_format is authoritative when present." })),
-});
-
-const ImageGenerateBatchParams = Type.Object({
-	prompts: Type.Array(Type.String(), { minItems: 1, maxItems: 8, description: "One prompt per image. Sequential requests, one image each." }),
-	model: ImageGenerateParams.properties.model,
-	size: ImageGenerateParams.properties.size,
-	quality: ImageGenerateParams.properties.quality,
-	background: ImageGenerateParams.properties.background,
-	format: ImageGenerateParams.properties.format,
 });
 
 function buildBody(opts: {
@@ -148,56 +137,4 @@ export default function (pi: ExtensionAPI): void {
 			}
 		},
 	});
-
-	pi.registerTool({
-		name: "openai_codex_generate_images",
-		label: "OpenAI Codex: Generate Image Batch",
-		description: "Batch image generation via OpenAI Codex/ChatGPT OAuth: one image per prompt (1–8), sequential. Does not support img2img; use openai_codex_generate_image for edits.",
-		promptSnippet: "Use for multiple GPT images via OpenAI Codex/ChatGPT OAuth. One image per prompt; sequential.",
-		parameters: ImageGenerateBatchParams,
-		async execute(_callId, params, signal) {
-			let auth;
-			try { auth = await getOpenAICodexAuth(); } catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				return { content: [{ type: "text", text: `Error resolving OpenAI Codex OAuth: ${msg}` }], details: { error: msg, model: null, results: [] } };
-			}
-			if (!auth) return { content: [{ type: "text", text: "Error: no openai-codex OAuth entry found in ~/.pi/agent/auth.json." }], details: { error: "openai-codex auth missing", model: null, results: [] } };
-			const prompts = Array.isArray(params.prompts) ? (params.prompts as unknown[]).map(String).filter((s) => s.trim().length > 0) : [];
-			if (prompts.length === 0) return { content: [{ type: "text", text: "Error: prompts must contain at least one non-empty string." }], details: { error: "missing prompts", model: null, results: [] } };
-			const model = resolveModel(params.model as string | null | undefined);
-			const { formatId, ext } = resolveFormat(params.format);
-			const outputDir = resolveOutputDir();
-			ensureOutputDir(outputDir);
-			const results: Array<{ prompt: string; url?: string; response?: OpenAICodexImageResponse; error?: string }> = [];
-			for (const p of prompts) {
-				const req = buildBody({
-					model,
-					prompt: p,
-					formatId,
-					size: typeof params.size === "string" ? params.size : undefined,
-					quality: typeof params.quality === "string" ? params.quality : undefined,
-					background: typeof params.background === "string" ? params.background : undefined,
-				});
-				try {
-					const resp = await callOpenAICodexImage(auth, req.kind, req.body, signal);
-					const url = (await persistFirst(resp, outputDir, ext)) ?? undefined;
-					results.push(url ? { prompt: p, url, response: resp } : { prompt: p, error: "no decodable image in response", response: resp });
-				} catch (err) {
-					results.push({ prompt: p, error: err instanceof Error ? err.message : String(err) });
-				}
-			}
-			const ok = results.filter((r) => r.url);
-			const fail = results.filter((r) => r.error);
-			const lines = [`OpenAI Codex batch with **${model}** (${ok.length}/${results.length} succeeded):`, ""];
-			for (const r of ok) lines.push(`- ${r.prompt.slice(0, 80)}: ![](${r.url})`);
-			if (fail.length) {
-				lines.push("", `Failed (${fail.length}):`);
-				for (const r of fail) lines.push(`- ${r.prompt.slice(0, 80)}: ${r.error}`);
-			}
-			return { content: [{ type: "text", text: lines.join("\n") }], details: { model, results } };
-		},
-	});
-
-	void IMAGE_MODELS;
-	void DEFAULT_MODEL;
 }

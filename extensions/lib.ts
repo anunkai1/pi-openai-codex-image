@@ -8,7 +8,7 @@
  * extensions.
  */
 
-import { resolveModel as resolveModelCore, OPENAI_CODEX_IMAGE_MODELS } from "pi-image-core";
+import { resolveModel as resolveModelCore } from "pi-image-core";
 
 export {
 	OUTPUT_URL_PREFIX,
@@ -20,19 +20,8 @@ export {
 	resolveOutputDir,
 	writeBase64,
 } from "pi-image-core";
-export {
-	callOpenAICodexImage,
-	CODEX_IMAGE_EDITS_ENDPOINT,
-	CODEX_IMAGE_GENERATIONS_ENDPOINT,
-} from "pi-image-core";
-export type { ImageModelEntry, OpenAICodexAuth, OpenAICodexImageResponse } from "pi-image-core";
-export {
-	OPENAI_CODEX_REQUEST_TIMEOUT_MS as REQUEST_TIMEOUT_MS,
-	OPENAI_CODEX_MAX_RETRIES as MAX_RETRIES,
-} from "pi-image-core";
-
-/** Codex model catalog (re-exported under the legacy name `IMAGE_MODELS`). */
-export const IMAGE_MODELS = OPENAI_CODEX_IMAGE_MODELS;
+export { callOpenAICodexImage } from "pi-image-core";
+export type { OpenAICodexAuth, OpenAICodexImageResponse } from "pi-image-core";
 
 /** Upstream Codex's built-in imagegen tool fixes this model. The backend may
  *  return metadata like `gpt-image-2-codex`, `quality:auto`, `size:auto`. */
