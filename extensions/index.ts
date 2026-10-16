@@ -3,7 +3,8 @@
  * Uses the same OAuth-backed backend upstream Codex's built-in image_gen tool
  * uses (`chatgpt.com/backend-api/codex/images/...`). This is NOT the public
  * OpenAI Platform /v1/images API and does NOT require OPENAI_API_KEY; it uses
- * ~/.pi/agent/auth.json's `openai-codex` OAuth entry.
+ * ~/.pi/agent/auth.json's `openai-codex` OAuth entry or the existing Codex
+ * CLI login in $CODEX_HOME/auth.json (default ~/.codex/auth.json).
  */
 
 import Type from "typebox";
@@ -86,25 +87,32 @@ async function formatResult(prompt: string, model: string, resp: OpenAICodexImag
 	};
 }
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+interface ImageResultDetails {
+	model: string | null;
+	images: string[];
+	response?: OpenAICodexImageResponse;
+	error?: string;
+}
 
 export default function (pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "openai_codex_generate_image",
 		label: "OpenAI Codex: Generate Image",
 		description:
-			"Generate or edit an image using OpenAI GPT image generation through Codex/ChatGPT OAuth (the same backend as upstream Codex's built-in image_gen tool). Does NOT require OPENAI_API_KEY; uses ~/.pi/agent/auth.json's openai-codex OAuth token. Supports img2img via input_image. Returns /uploads/<uuid> URLs. Note: Codex may normalize size/quality/model (e.g. gpt-image-2-codex, quality auto, size auto).",
+			"Generate or edit an image using OpenAI GPT image generation through Codex/ChatGPT OAuth (the same backend as upstream Codex's built-in image_gen tool). Does NOT require OPENAI_API_KEY; uses pi's openai-codex OAuth login or the existing Codex CLI login. Pi's openai subscription-sharing login alone does not support images. Supports img2img via input_image. Returns /uploads/<uuid> URLs. Note: Codex may normalize size/quality/model (e.g. gpt-image-2-codex, quality auto, size auto).",
 		promptSnippet:
 			"Use when the active image model is an OpenAI Codex/ChatGPT OAuth model (source tag openai-codex/) or the user specifically wants GPT images via ChatGPT/Codex OAuth. Supports img2img via input_image. For OpenRouter-hosted OpenAI image models use openrouter_generate_image instead.",
 		parameters: ImageGenerateParams,
-		async execute(_callId, params, signal) {
+		async execute(_callId, params, signal): Promise<AgentToolResult<ImageResultDetails>> {
 			let auth;
 			try { auth = await getOpenAICodexAuth(); } catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return { content: [{ type: "text", text: `Error resolving OpenAI Codex OAuth: ${msg}` }], details: { error: msg, model: null, images: [] } };
 			}
 			if (!auth) {
-				return { content: [{ type: "text", text: "Error: no openai-codex OAuth entry found in ~/.pi/agent/auth.json. Run `pi` login for OpenAI Codex / ChatGPT first." }], details: { error: "openai-codex auth missing", model: null, images: [] } };
+				return { content: [{ type: "text", text: "Error: no Codex subscription login found. Run `codex login` or connect Pi's OpenAI Codex provider. Pi's separate `openai` subscription-sharing login does not support image generation." }], details: { error: "openai-codex auth missing", model: null, images: [] } };
 			}
 			const prompt = String(params.prompt ?? "").trim();
 			if (!prompt) return { content: [{ type: "text", text: "Error: prompt is required." }], details: { error: "missing prompt", model: null, images: [] } };
