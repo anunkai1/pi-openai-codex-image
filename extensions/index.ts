@@ -100,6 +100,7 @@ export default function (pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "openai_codex_generate_image",
 		label: "OpenAI Codex: Generate Image",
+		exposure: "deferred",
 		description:
 			"Generate or edit an image using OpenAI GPT image generation through Codex/ChatGPT OAuth (the same backend as upstream Codex's built-in image_gen tool). Does NOT require OPENAI_API_KEY; uses pi's openai-codex OAuth login or the existing Codex CLI login. Pi's openai subscription-sharing login alone does not support images. Supports img2img via input_image. Returns /uploads/<uuid> URLs. Note: Codex may normalize size/quality/model (e.g. gpt-image-2-codex, quality auto, size auto).",
 		promptSnippet:
